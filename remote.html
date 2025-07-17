@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Cycie Remote</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(145deg, #e0f7fa, #fffde7);
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+    }
+    .container {
+      width: 90%;
+      max-width: 400px;
+      background: white;
+      padding: 20px;
+      border-radius: 20px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+      text-align: center;
+    }
+    h2 {
+      margin-bottom: 20px;
+      color: #00796b;
+    }
+    input, textarea, button {
+      width: 100%;
+      padding: 12px;
+      margin: 10px 0;
+      border: 1px solid #ccc;
+      border-radius: 10px;
+      font-size: 16px;
+    }
+    button {
+      background-color: #00796b;
+      color: white;
+      font-weight: bold;
+      border: none;
+      transition: background-color 0.3s;
+    }
+    button:hover {
+      background-color: #004d40;
+      cursor: pointer;
+    }
+    #status {
+      margin-top: 10px;
+      font-size: 14px;
+      color: #388e3c;
+    }
+.wave {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  height: 30px;
+}
+
+.wave span {
+  display: inline-block;
+  width: 5px;
+  height: 100%;
+  background: #0099ff;
+  animation: wave 1s infinite ease-in-out;
+}
+
+.wave span:nth-child(2) { animation-delay: 0.1s; }
+.wave span:nth-child(3) { animation-delay: 0.2s; }
+.wave span:nth-child(4) { animation-delay: 0.3s; }
+.wave span:nth-child(5) { animation-delay: 0.4s; }
+
+@keyframes wave {
+  0%, 100% {
+    transform: scaleY(0.3);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+  </style>
+</head>
+<body>
+
+  <!-- Start Button (mobile only) -->
+  <div id="start-screen" style="display: none; text-align: center; margin-top: 40vh;">
+    <button onclick="startAssistant()" style="font-size: 24px; padding: 15px 30px;">🚀 Start Assistant</button>
+    <audio id="dummy-player" src="/silence.mp3" preload="auto"></audio>
+
+  </div>
+
+  <!-- Assistant Main UI -->
+  <div class="container" id="assistant-ui" style="display: block;">
+    <h2>🎙️ Cycie Remote AI</h2>
+    <form onsubmit="sendMessage(); prepareAudio(); return false;">
+      <input id="name" type="text" placeholder="Enter your name" required />
+      <textarea id="message" rows="3" placeholder="Type your message..."></textarea>
+      <button type="submit">Send</button>
+      <button type="button" onclick="startVoice()">🎤 Speak</button>
+    </form>
+
+    <div id="status"></div>
+    <div id="reply-box" style="white-space: pre-wrap; margin-top: 1em;"></div>
+    <div id="speak-anim" style="display: none; margin-top: 10px;">
+      <div class="wave">
+        <span></span><span></span><span></span><span></span><span></span>
+      </div>
+    </div>
+
+    <audio id="player" preload="auto" crossorigin="anonymous" autoplay></audio>
+  </div>
+
+</body>
+
+
+<script>
+  function prepareAudio() {
+  const player = document.getElementById("player");
+  const tunnelUrl = cachedTunnelUrl || ""; // Fallback
+
+  const voiceUrl = `${tunnelUrl}/voice?ts=${Date.now()}`;
+  player.pause();
+  player.removeAttribute("src");
+  player.load();
+  player.src = voiceUrl;
+  player.load();
+}
+
+
+let cachedTunnelUrl = null;
+let audioUnlocked = false;
+function isMobile() {
+  return /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+}
+
+window.addEventListener("DOMContentLoaded", () => {
+  if (isMobile()) {
+    document.getElementById("start-screen").style.display = "block";
+    document.getElementById("assistant-ui").style.display = "none";
+  }
+});
+
+
+async function startAssistant() {
+  const dummy = document.getElementById("dummy-player");
+  try {
+    await dummy.play();
+    dummy.pause();
+    dummy.currentTime = 0;
+
+    audioUnlocked = true;
+    document.getElementById("start-screen").style.display = "none";
+    document.getElementById("assistant-ui").style.display = "block";
+    console.log("✅ Mobile audio unlocked.");
+  } catch (err) {
+    alert("🔇 Tap again to unlock audio.");
+    console.warn("Audio unlock failed:", err);
+  }
+}
+
+
+
+
+
+async function getTunnelUrl() {
+  if (cachedTunnelUrl) return cachedTunnelUrl;
+  try {
+    const res = await fetch("/tunnel_log.txt");
+    const text = await res.text();
+    const match = text.match(/https:\/\/[a-zA-Z0-9\-\.]+\.trycloudflare\.com/);
+    if (match && match[0]) {
+      cachedTunnelUrl = match[0];
+      return cachedTunnelUrl;
+    }
+    throw new Error("Tunnel URL not found.");
+  } catch (err) {
+    console.error("Tunnel lookup failed:", err);
+    return null;
+  }
+}
+
+function showSpeakingAnimation(show) {
+  document.getElementById("speak-anim").style.display = show ? "block" : "none";
+}
+
+async function typeReply(text, speed = 35) {
+  const replyBox = document.getElementById("reply-box");
+  replyBox.textContent = "";
+  for (let i = 0; i < text.length; i++) {
+    replyBox.textContent += text[i];
+    await new Promise(resolve => setTimeout(resolve, speed));
+  }
+}
+
+async function sendMessage() {
+  const name = document.getElementById("name").value;
+  const msg = document.getElementById("message").value;
+  const status = document.getElementById("status");
+  const player = document.getElementById("player");
+
+  if (!msg.trim()) {
+    status.textContent = "Please enter a message.";
+    return;
+  }
+
+  status.textContent = "🔄 Sending...";
+
+  const tunnelUrl = await getTunnelUrl();
+  if (!tunnelUrl) {
+    status.textContent = "❌ Could not find tunnel URL.";
+    return;
+  }
+
+  const voiceUrl = `${tunnelUrl}/voice?ts=${Date.now()}`;
+    player.pause();
+    player.removeAttribute("src");
+    player.load();
+  try {
+    const res = await fetch(`${tunnelUrl}/message`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, message: msg })
+    });
+
+    const data = await res.json();
+    const reply = data.reply;
+
+    // Delay to give time for voice.wav
+    await new Promise(r => setTimeout(r, 500));
+
+    // Set voice URL
+    
+    player.src = voiceUrl;
+    player.load();
+
+    // Try to play after a small delay (mimics 2nd try behavior)
+    setTimeout(async () => {
+      try {
+        await player.play();
+        showSpeakingAnimation(true);
+      } catch (err) {
+        console.warn("Autoplay blocked:", err);
+        status.textContent += " 🔇 Tap play manually.";
+      }
+    }, 200); // delay here was the magic in your old code
+
+    player.onended = () => showSpeakingAnimation(false);
+    player.onerror = () => {
+      showSpeakingAnimation(false);
+      status.textContent += " ❌ Audio error.";
+    };
+
+    await typeReply(reply);
+    status.textContent = "✅ Reply finished";
+    document.getElementById("message").value = "";
+
+  } catch (err) {
+    console.error("❌ sendMessage error:", err);
+    cachedTunnelUrl = null;
+    status.textContent = "❌ Failed to send message.";
+  }
+}
+
+</script>
+
+
+
+
+
+
+
+
+</body>
+</html>
