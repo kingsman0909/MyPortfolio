@@ -6,6 +6,8 @@ pre requesites:
 
  can use using offline or online(more features in online)
 
+ oh I dont list any command you can see in the cycieAI code the commands 
+
  step by step how to use:
 
  step 1:
